@@ -106,3 +106,4 @@ a{color:var(--accent)}
 .newsbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}
 .locked nav.tabs,.locked section{display:none!important}
 .nokey #verifyWrap,.nokey #imgField{display:none!important}
+.notice.ok{border-inline-start-color:var(--up);background:var(--up-bg)}.notice ol{margin:6px 0;padding-inline-start:20px}.notice .btn{padding:6px 12px;font-size:13px;text-decoration:none;display:inline-block}

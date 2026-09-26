@@ -72,6 +72,16 @@
         <button class="btn ghost" id="stop" type="button" hidden>עצור</button>
         <span class="hint" id="status"></span>
       </div>
+      <div class="notice ok" id="copied" hidden>
+        <b>✓ הכתבה והכללים הועתקו.</b> Claude נפתח בלשונית חדשה, עם תיבה ריקה. זה תקין.
+        <ol>
+          <li>לחץ בתוך התיבה של Claude.</li>
+          <li>הדבק: <b>Ctrl+V</b> במחשב, או לחיצה ארוכה ← "הדבק" בטלפון.</li>
+          <li>שלח. ההוראות שיודבקו הן באנגלית, והתשובה תגיע בעברית.</li>
+        </ol>
+        <span id="copiedMore"></span>
+        <div class="row" style="margin-top:6px"><button class="btn ghost" type="button" id="copyAgain">העתק שוב</button><a class="btn ghost" href="https://claude.ai/new" target="_blank" rel="noopener">פתח את Claude שוב</a></div>
+      </div>
       <div class="notice" id="avail" hidden></div>
       <div class="log" id="log" hidden></div>
     </form>
