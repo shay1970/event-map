@@ -62,12 +62,13 @@
         </div>
       </div>
       <label class="chk" id="verifyWrap"><input type="checkbox" id="verify" checked> לאמת מול אתרי חדשות (Reuters, AP, Bloomberg…) לפני הניתוח</label>
-      <div>
+      <div id="imgField">
         <label class="lbl" for="img">צילום מסך של ציוץ / כתבה (לא חובה)</label>
         <input type="file" id="img" class="file" accept="image/jpeg,image/png,image/webp,image/gif">
       </div>
       <div class="row">
-        <button class="btn primary" id="go" type="submit">נתח אירוע</button>
+        <button class="btn primary" id="go" type="submit" hidden>נתח אירוע</button>
+        <button class="btn primary" id="openClaude" type="button">פתח ב-Claude</button>
         <button class="btn ghost" id="stop" type="button" hidden>עצור</button>
         <span class="hint" id="status"></span>
       </div>
@@ -79,9 +80,9 @@
       <h2 class="sec">איך זה עובד</h2>
       <div class="how">
         <div>בוחרים כותרת מפיד החדשות או מדביקים קישור / טקסט / צילום מסך</div>
-        <div>Claude מאמת מול אתרי חדשות, מתייג (one-off / process) ובוחר 12–15 מועמדים + מדדים</div>
-        <div>השרת מביא שנה של מחירים: סגירה, 1M, σ של גאפים, סף 2σ</div>
-        <div>10 הסופיות לפי ציון חשיפה → נשמר ביומן (בדפדפן) למעקב</div>
+        <div>"פתח ב-Claude" מעתיק את הכתבה עם כללי המחקר ופותח את Claude: הוא מאמת, מתייג (one-off / process) ובוחר מניות ומדדים</div>
+        <div>התשובה של Claude מגיעה בצ'אט. מדביקים אותה חזרה ליומן בלחיצה</div>
+        <div>ביומן רושמים מה קרה בפועל. עם מפתח API הניתוח רץ גם בתוך האפליקציה, כולל מחירים</div>
       </div>
       <p class="hint" style="margin-top:12px">הכללים מבוססים על מחקר 40 האירועים (v2). הם השערות — לא הוכחה ולא המלצת השקעה.</p>
     </div>
@@ -95,8 +96,8 @@
     <div id="detail"></div>
   </section>
 
-  <p class="foot">כלי מחקר. לא המלצה ולא פקודת מסחר. ניתוח: Claude API במפתח של מי שמריץ את השרת · היומן נשמר בדפדפן · מחירים: Yahoo Finance / Stooq (לא בזמן אמת) · חדשות: פידי RSS של המקורות.</p>
+  <p class="foot">כלי מחקר. לא המלצה ולא פקודת מסחר. ניתוח: Claude · היומן נשמר בדפדפן · מחירים: Yahoo Finance / Stooq (לא בזמן אמת) · חדשות: פידי RSS של המקורות.</p>
 </div>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

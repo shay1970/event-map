@@ -105,3 +105,4 @@ a{color:var(--accent)}
 .src li{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .newsbar{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}
 .locked nav.tabs,.locked section{display:none!important}
+.nokey #verifyWrap,.nokey #imgField{display:none!important}

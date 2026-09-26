@@ -1,3 +1,5 @@
+import { buildPrompt } from "./prompt.js";
+
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const safeUrl = u => /^https?:\/\//i.test(String(u || "")) ? esc(u) : "#";
@@ -44,7 +46,13 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.onclick = () => show
 /* ---------- health ---------- */
 api("/api/health").then(h => {
   if (h.passwordRequired && !getPw()) showLock();
-  if (!h.claude) { $("#avail").hidden = false; $("#avail").textContent = "ANTHROPIC_API_KEY לא מוגדר בשרת — אי אפשר להריץ ניתוח."; $("#go").disabled = true; }
+  // With a working API setup, the in-app analysis is the main button and
+  // "open in Claude" stays as a free alternative.
+  if (!h.analyze) document.body.classList.add("nokey");
+  if (h.analyze) {
+    $("#go").hidden = false;
+    $("#openClaude").classList.remove("primary"); $("#openClaude").classList.add("ghost");
+  }
 }).catch(() => {});
 
 /* ---------- news feed ---------- */
@@ -190,6 +198,41 @@ $("#form").onsubmit = async e => {
   } finally { finish(); }
 };
 $("#stop").onclick = () => ctl?.abort();
+
+/* ---------- open in Claude (no API key needed) ---------- */
+const CLAUDE_NEW = "https://claude.ai/new";
+const MAX_URL_PROMPT = 6000; // longer prompts go through the clipboard only
+function copyText(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
+  return Promise.resolve(legacyCopy(text));
+}
+function legacyCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch {}
+  ta.remove(); return ok;
+}
+function openInClaude({ text, mode, sourceUrl }) {
+  const prompt = buildPrompt({ text, mode, sourceUrl, format: "chat" });
+  const q = encodeURIComponent(prompt);
+  // Both calls run inside the click, so the browser allows the copy and the new tab.
+  const copied = copyText(prompt);
+  window.open(q.length <= MAX_URL_PROMPT ? `${CLAUDE_NEW}?q=${q}` : CLAUDE_NEW, "_blank", "noopener");
+  return { copied, inUrl: q.length <= MAX_URL_PROMPT };
+}
+$("#openClaude").onclick = () => {
+  const text = $("#ev").value.trim();
+  if (!text) { status($("#img").files?.[0] ? "במצב הזה צריך טקסט. תאר את האירוע במילים, ואת צילום המסך צרף ישירות בצ'אט של Claude." : "כתוב אירוע, או בחר ידיעה מלשונית החדשות."); return; }
+  const mode = document.querySelector("input[name=mode]:checked").value;
+  const sourceUrl = $("#url").value.trim() || null;
+  const { copied, inUrl } = openInClaude({ text, mode, sourceUrl });
+  const imgNote = $("#img").files?.[0] ? " את צילום המסך צרף ישירות בצ'אט." : "";
+  copied.then(ok => status(
+    (inUrl ? "Claude נפתח בלשונית חדשה עם הכתבה והכללים. לחץ שם על שליחה." : ok ? "Claude נפתח בלשונית חדשה, והטקסט הועתק. הדבק אותו בתיבה (Ctrl+V, או לחיצה ארוכה והדבק בטלפון) ושלח." : "Claude נפתח, אבל ההעתקה נחסמה. נסה שוב.")
+    + imgNote + (mode !== "imaginary" ? " הניתוח נשמר ביומן, ושם אפשר להדביק את התשובה." : "")));
+  if (mode !== "imaginary") logAdd({ kind: "chat", createdAt: new Date().toISOString(), mode, event: text.slice(0, 20000), sourceUrl, analysis: "", outcome: "" });
+};
 function finish(){ $("#go").disabled = false; $("#stop").hidden = true; }
 function showErr(m){ status(""); $("#result").innerHTML = `<div class="notice err" style="margin-top:14px">${esc(m)}</div>`; }
 
@@ -257,8 +300,8 @@ function loadLog(){
     <label class="btn ghost">ייבוא מקובץ<input type="file" id="imp" accept="application/json,.json" hidden></label>
     <span class="hint" id="ioSt"></span></div>`;
   $("#list").innerHTML = tools + (rows.length ? rows.map(r => `<button class="item" data-id="${esc(r.id)}">
-    <span class="m">${esc(String(r.createdAt||"").slice(0,10))} · ${esc(MODE_HE[r.mode]||r.mode)} · ${esc(r.s1?.label||"")}${r.outcome ? " · ✓ תוצאה" : ""}</span>
-    <span class="t">${esc(r.s1?.summary || String(r.event||"").slice(0,120))}</span>
+    <span class="m">${esc(String(r.createdAt||"").slice(0,10))} · ${esc(MODE_HE[r.mode]||r.mode)} · ${r.kind === "chat" ? (r.analysis ? "ניתוח בצ'אט ✓" : "ניתוח בצ'אט · חסרה תשובה") : esc(r.s1?.label||"")}${r.outcome ? " · ✓ תוצאה" : ""}</span>
+    <span class="t">${esc(r.s1?.summary || String(r.event||"").split("\n")[0].slice(0,140))}</span>
     <span class="m" style="direction:ltr;text-align:right">${(r.stocks||[]).map(s=>esc(s.ticker)).join(" ")}</span></button>`).join("")
     : `<p class="hint">עוד אין ניתוחים שמורים. ניתוח במצב "אמיתי" או "תרחיש מראש" נשמר כאן אוטומטית, עם מקום לרשום מה קרה בפועל. היומן נשמר בדפדפן הזה; כדי להעביר אותו למכשיר אחר השתמש בייצוא ובייבוא.</p>`);
   $("#list").querySelectorAll(".item").forEach(b => b.onclick = () => openDetail(b.dataset.id));
@@ -280,8 +323,36 @@ function loadLog(){
     } catch { $("#ioSt").textContent = "הקובץ לא תקין."; }
   };
 }
+function openChatDetail(r){
+  const host = $("#detail");
+  host.innerHTML = `<div class="row" style="margin-top:16px"><button class="btn ghost" id="back">← חזרה לרשימה</button><button class="btn ghost" id="reopen">פתח שוב ב-Claude</button><button class="btn ghost" id="del" style="margin-inline-start:auto">מחק</button></div>
+    <h2 class="sec">האירוע</h2>
+    <div class="tags"><span class="tag">${esc(MODE_HE[r.mode]||r.mode)}</span><span class="tag">${esc(String(r.createdAt||"").slice(0,16).replace("T"," "))}</span></div>
+    <p class="box" style="white-space:pre-wrap;margin-top:8px;max-height:240px;overflow:auto" dir="auto">${esc(r.event)}</p>
+    ${r.sourceUrl ? `<p class="hint">מקור: <a href="${safeUrl(r.sourceUrl)}" target="_blank" rel="noopener noreferrer">${esc(hostOf(r.sourceUrl))}</a></p>` : ""}
+    <h2 class="sec">התשובה של Claude</h2>
+    <div class="card stack"><textarea id="ana" style="min-height:200px" placeholder="העתק את התשובה מהצ'אט של Claude והדבק אותה כאן">${esc(r.analysis||"")}</textarea></div>
+    <h2 class="sec">מה קרה בפועל</h2>
+    <div class="card stack"><textarea id="outc" placeholder="גאפ בפועל, פתיחה→D+4 בנכס הכותרת, האם התיוג החזיק, מה פספסנו…">${esc(r.outcome||"")}</textarea>
+    <div class="row"><button class="btn" id="saveOut">שמור</button><span class="hint" id="outSt"></span></div></div>`;
+  $("#list").hidden = true;
+  $("#back").onclick = loadLog;
+  $("#reopen").onclick = () => { openInClaude(r); $("#outSt").textContent = "Claude נפתח בלשונית חדשה."; };
+  $("#del").onclick = () => {
+    if (!confirm("למחוק את הניתוח מהיומן?")) return;
+    logWrite(logRead().filter(x => x.id !== r.id)); loadLog();
+  };
+  $("#saveOut").onclick = () => {
+    const list = logRead(), row = list.find(x => x.id === r.id);
+    if (!row) { $("#outSt").textContent = "הניתוח לא נמצא."; return; }
+    row.analysis = $("#ana").value; row.outcome = $("#outc").value; row.outcomeAt = new Date().toISOString();
+    if (logWrite(list)) { Object.assign(r, row); $("#outSt").textContent = "נשמר."; }
+    else $("#outSt").textContent = "השמירה נכשלה.";
+  };
+}
 function openDetail(id){
   const r = rows.find(x => x.id === id); if (!r) return;
+  if (r.kind === "chat") return openChatDetail(r);
   const host = $("#detail");
   host.innerHTML = `<div class="row" style="margin-top:16px"><button class="btn ghost" id="back">← חזרה לרשימה</button><button class="btn ghost" id="del" style="margin-inline-start:auto">מחק</button></div><div id="dres"></div>
     <h2 class="sec">מה קרה בפועל</h2>

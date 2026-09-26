@@ -26,8 +26,8 @@ const strip = c => ({
 });
 
 export default handle(async (req, res) => {
-  if (!guard(req, res, { methods: ['POST'], limit: { key: 'analyze', max: LIMIT, windowMs: 3600_000 } })) return;
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return send(res, 503, { error: ERR_HE.auth });
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return send(res, 503, { error: 'אין מפתח API בשרת, לכן הניתוח נעשה דרך הכפתור "פתח ב-Claude".', code: 'no_key' });
+  if (!guard(req, res, { methods: ['POST'], costly: true, limit: { key: 'analyze', max: LIMIT, windowMs: 3600_000 } })) return;
 
   const body = await readJson(req);
   const text = typeof body.text === 'string' ? body.text.trim().slice(0, 20000) : '';
