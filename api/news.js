@@ -5,5 +5,5 @@ export default handle(async (req, res) => {
   if (!guard(req, res, { methods: ['GET'], limit: { key: 'news', max: 120, windowMs: 3600_000 } })) return;
   const q = query(req);
   const sources = (q.get('sources') || '').split(',').filter(Boolean);
-  send(res, 200, await getNews({ sources, q: q.get('q') || '' }));
+  send(res, 200, await getNews({ sources, q: q.get('q') || '', translate: q.get('translate') !== '0' }));
 });

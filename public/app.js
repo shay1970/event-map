@@ -86,25 +86,31 @@ async function loadNews() {
   $("#nstatus").textContent = "טוען כותרות…";
   const qs = new URLSearchParams();
   if (active.size) qs.set("sources", [...active].join(","));
+  const wantHe = $("#ntr").checked;
+  if (!wantHe) qs.set("translate", "0");
   try {
     const r = await api("/api/news?" + qs);
     if (my !== newsReq) return;
     newsItems = r.items; newsLoadedAt = Date.now();
     renderNews();
     const errs = r.errors.length ? ` · לא נטענו: ${r.errors.map(e => e.source).join(", ")}` : "";
-    $("#nstatus").textContent = `${r.items.length} כותרות · עודכן ${new Date().toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"})}${errs}`;
+    const trNote = wantHe && !r.translated ? " · התרגום לא זמין כרגע, חלק מהכותרות באנגלית" : "";
+    $("#nstatus").textContent = `${r.items.length} כותרות · עודכן ${new Date().toLocaleTimeString("he-IL", {hour:"2-digit", minute:"2-digit"})}${trNote}${errs}`;
   } catch (e) { if (my === newsReq) $("#nstatus").textContent = "טעינת החדשות נכשלה: " + e.message; }
 }
 function renderNews() {
   const q = $("#nq").value.trim().toLowerCase();
   const terms = q.split(/\s+/).filter(Boolean);
-  const items = terms.length ? newsItems.filter(i => { const h = (i.title + " " + i.summary).toLowerCase(); return terms.every(t => h.includes(t)); }) : newsItems;
-  $("#newsList").innerHTML = items.length ? items.map((it, k) => {
-    const dir = hasHebrew(it.title) ? "rtl" : "ltr";
+  const hay = i => [i.title, i.summary, i.titleHe, i.summaryHe].filter(Boolean).join(" ").toLowerCase();
+  const items = terms.length ? newsItems.filter(i => { const h = hay(i); return terms.every(t => h.includes(t)); }) : newsItems;
+  $("#newsList").innerHTML = items.length ? items.map(it => {
+    const title = it.titleHe || it.title, summary = it.summaryHe || it.summary;
+    const dir = hasHebrew(title) ? "rtl" : "ltr", sdir = hasHebrew(summary) ? "rtl" : "ltr";
     return `<article class="nitem">
       <span class="m">${esc(it.publisher)}${it.publisher !== it.source ? " · " + esc(it.source) : ""} · ${esc(timeAgo(it.date))}</span>
-      <span class="t" dir="${dir}">${esc(it.title)}</span>
-      ${it.summary && it.summary !== it.title ? `<span class="s" dir="${dir}">${esc(it.summary.slice(0, 260))}</span>` : ""}
+      <span class="t" dir="${dir}">${esc(title)}</span>
+      ${it.titleHe ? `<span class="orig" dir="ltr">${esc(it.title)}</span>` : ""}
+      ${summary && summary !== title ? `<span class="s" dir="${sdir}">${esc(summary)}</span>` : ""}
       <div class="row"><button class="btn primary" type="button" data-k="${newsItems.indexOf(it)}">נתח</button>
       <a class="hint" href="${safeUrl(it.link)}" target="_blank" rel="noopener noreferrer">למקור ↗</a></div>
     </article>`;
@@ -114,6 +120,8 @@ function renderNews() {
 $("#nq").oninput = renderNews;
 $("#ev").addEventListener("input", () => { $("#copied").hidden = true; });
 $("#nrefresh").onclick = loadNews;
+try { $("#ntr").checked = localStorage.getItem("em.translate") !== "0"; } catch {}
+$("#ntr").onchange = () => { try { localStorage.setItem("em.translate", $("#ntr").checked ? "1" : "0"); } catch {} loadNews(); };
 setInterval(() => { if (!document.hidden && !$("#tab-news").hidden) loadNews(); }, 5 * 60 * 1000);
 
 async function pickNews(it, btn) {
