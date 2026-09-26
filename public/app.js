@@ -1,4 +1,4 @@
-import { buildPrompt, shortChatPrompt } from "./prompt.js";
+import { buildPrompt } from "./prompt.js";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -215,18 +215,15 @@ function legacyCopy(text) {
   let ok = false; try { ok = document.execCommand("copy"); } catch {}
   ta.remove(); return ok;
 }
-const MAX_URL_PROMPT = 7000; // encoded length that still fits a claude.ai link
 function openInClaude({ text, mode, sourceUrl }) {
-  // Prefer a short prompt inside the link so Claude opens with the question
-  // typed in; otherwise the full prompt goes by clipboard. The copy is made
-  // either way as a backup. Both calls run inside the click, so the browser
-  // allows the copy and the new tab.
-  const short = shortChatPrompt({ text, mode, sourceUrl }, MAX_URL_PROMPT);
-  const prompt = short || buildPrompt({ text, mode, sourceUrl, format: "chat" });
+  // The analysis prompt is far longer than a link can carry (Hebrew costs six
+  // URL characters per letter), so it goes by clipboard. Both calls run inside
+  // the click, so the browser allows the copy and the new tab.
+  const prompt = buildPrompt({ text, mode, sourceUrl, format: "chat" });
   lastPrompt = prompt;
   const copied = copyText(prompt);
-  window.open(short ? `${CLAUDE_NEW}?q=${encodeURIComponent(short)}` : CLAUDE_NEW, "_blank", "noopener");
-  return { copied, inUrl: !!short };
+  window.open(CLAUDE_NEW, "_blank", "noopener");
+  return { copied, inUrl: false };
 }
 function showCopied(ok, { imgNote, saved, inUrl }) {
   $("#copied").hidden = false;
