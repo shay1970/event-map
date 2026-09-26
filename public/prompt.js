@@ -48,156 +48,115 @@ ${text.slice(0, 20000)}`;
 }
 
 // The user's own analysis prompt, for a regular Claude chat (no API key needed).
+// Kept short on purpose so it fits in a claude.ai/new?q= link.
 const CHAT_MODE = {
   real: 'Mode: real, happened now.',
-  pre: 'Mode: pre-registered scenario, has NOT happened yet. Skip section 0 verification of the event itself (verify only the background facts), and you MUST give Scenario A + Scenario B.',
-  imaginary: 'Mode: imaginary, demo only. Skip verification; analyze as a hypothetical.',
+  pre: 'Mode: pre-registered scenario, has NOT happened yet. Verify only background facts, and give Scenario A/B.',
+  imaginary: 'Mode: imaginary, demo only. Skip verification.',
 };
 
-function articleBlock({ text, sourceUrl }) {
+const CHAT_RULES = `1. אימות
+לפני הניתוח אמת את האירוע מול לפחות 2 מקורות אמינים ועדכניים, כולל Reuters / AP / Bloomberg אם זמין.
+הפרד בין:
+* מידע חדש
+* מידע שהיה ידוע קודם
+* פרשנות/תחזית
+קבע האם מדובר ב־NEW INFORMATION או REPACKAGING.
+אל תמציא עובדות או נתונים.
+2. סיווג
+סווג: ONE-OFF / PROCESS / POLICY-FISCAL / MACRO / CORPORATE / GEOPOLITICAL.
+אם לא ברור → Scenario A/B.
+3. התאמה למחקר
+המחקר שלי מבוסס על 40 אירועים גיאופוליטיים 2021–26:
+* Trade: fade headline gap at Open[D], exit Close[D+4].
+* ONE-OFF: fade won 74% (n=23, +0.71%), אך לא היה מובהק מול gaps גדולים רגילים.
+* PROCESS + |z|≥2: fade lost −3.72%, hit rate 33%.
+* SPY gap-down ≥2σ באירועים גיאופוליטיים חזר למעלה בתוך 5 sessions.
+* USO ≥2σ באירועי process נטה להמשיך.
+* אלו hypotheses, not proven edges.
+Analogs: Ukraine invasion 2022-02-24 P; OPEC+ cut 2023-04-03 O; Wagner 2023-06-26 O; Hamas attack 2023-10-09 P; Houthi strikes 2024-01-12 O; Iran missiles 2024-04-15 O; Israel strike Iran 2024-10-28 O; Assad falls 2024-12-09 O; Canada/Mexico/China tariffs 2025-02-03 P; Liberation Day 2025-04-03 P; Geneva truce 2025-05-12 O; Israel strikes Iran 2025-06-13 P; US strikes Iran nuclear 2025-06-23 O; Maduro captured 2026-01-05 O; US/Israel-Iran war 2026-03-02 P; US-Iran ceasefire 2026-04-08 O.
+לפני החלת ה־edge בדוק:
+1. האם event class זהה למדגם?
+2. האם מנגנון ההשפעה דומה?
+3. האם אופק הזמן דומה?
+4. האם surprise דומה?
+קבע: HIGH / MEDIUM / LOW / NOT TRANSFERABLE.
+אם LOW/NOT TRANSFERABLE — אל תציג את הסטטיסטיקה כ־edge תקף.
+אל תמציא z-score. אם אין נתונים: z-score unavailable.
+4. יום D ותגובת השוק
+קבע מהו D לפי זמן פרסום והאם השוק פתוח.
+נתח:
+SPY, QQQ, IWM + ETFs רלוונטיים.
+קבע:
+* Expected direction
+* Surprise: LOW/MEDIUM/HIGH
+* FADE / CONTINUATION / NO CLEAR EDGE
+* Confidence
+* מה יכול לבטל את התזה
+אם D עדיין לא התרחש, הפרד בבירור בין forecast לבין fact.
+5. מניות
+בחר 10 מניות אמריקאיות נזילות, כולל winners ו־losers.
+| Ticker | Name | ↑/↓ | Order | Exposure 1–3 | Concrete fact + reason | Mechanism |
+Order 1 = השפעה ישירה.
+Order 2 = השפעה משנית.
+אל תמציא exposure או נתונים.
+6. ETFs
+בחר 4–7 מתוך:
+SPY QQQ IWM SMH XLE USO UNG GLD SLV TLT UUP ITA XAR EWT FXI KWEB EWJ EWY EPOL VGK EWZ REMX COPX WEAT DBA JETS XOP
+| ETF | ↑/↓ | Exposure 1–3 | Mechanism | Already priced? |
+7. Pricing
+עבור הנכסים המרכזיים, אם זמין:
+* Last Close
+* 1-month change
+* האם כבר הייתה תנועה משמעותית בכיוון האירוע
+בדוק במיוחד האם מדובר ב־priced-in / crowded trade.
+8. Analog + research
+מצא 1–3 אנלוגים הקרובים ביותר לפי event type, surprise, mechanism, regime ו־time horizon.
+הסבר:
+* מה דומה
+* מה שונה
+* מה הייתה תגובת השוק
+הפרד בין Evidence / Hypothesis / Unknown.
+אל תציג correlation כ־causation.
+9. Critique + Flip
+בקר את התזה:
+* מה כבר מתומחר?
+* מה אינו חדש?
+* איזה חלק מהתגובה יכול לנבוע מגורמים אחרים?
+* האם המדגם מתאים?
+* איפה sample size / selection bias / regime risk עלולים לשבור את הכלל?
+לבסוף: מה 3–5 עובדות עתידיות שישנו את התזה?
+Output
+ענה רק בעברית, בסעיפים 1–9 לעיל.
+כל עובדה עדכנית — מקור ליד הטענה.
+אל תמציא נתונים.
+אל תציג תחזית כעובדה.
+בסוף: מחקר וניתוח בלבד, לא ייעוץ השקעות.`;
+
+// excerptChars: how much of the article body to include (null = all of it).
+function chatPrompt({ text, mode, sourceUrl }, excerptChars = null) {
   const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
-  const headline = lines[0] || '';
   const body = lines.slice(1).join('\n');
+  const excerpt = excerptChars == null ? body.slice(0, 12000) : body.slice(0, excerptChars);
   return [
+    'נתח את ההשפעה של הכתבה הזו על שוק המניות האמריקאי.',
     sourceUrl ? `Article: ${sourceUrl}` : null,
-    `Headline: ${headline}`,
-    body ? `Excerpt:\n${body.slice(0, 12000)}` : null,
+    `Headline: ${lines[0] || ''}`,
+    excerpt ? `Excerpt: ${excerpt}` : null,
+    `Today: ${new Date().toISOString().slice(0, 10)}`,
+    CHAT_MODE[mode] || CHAT_MODE.real,
+    CHAT_RULES,
   ].filter(Boolean).join('\n');
 }
 
-function chatPrompt({ text, mode, sourceUrl }) {
-  const today = new Date().toISOString().slice(0, 10);
-  return `מה ההשפעה של הכתבה הזו על שוק המניות האמריקאי? נתח לפי הכללים הבאים.
-
-${articleBlock({ text, sourceUrl })}
-Today: ${today}
-${CHAT_MODE[mode] || CHAT_MODE.real}
-
-0. VERIFY FIRST
-לפני כל ניתוח:
-1. אמת את האירוע באמצעות לפחות 2 מקורות חדשותיים אמינים ועדכניים. העדף Reuters / AP / Bloomberg. אם סוכנויות הידיעות לא סיקרו את האירוע (נפוץ בחדשות מקומיות), השתמש ב-2 מקורות אמינים אחרים וסמן את האימות כ"חלקי".
-2. בדוק את תאריך ושעת הפרסום.
-3. הפרד בין: מידע חדש שהתרחש עכשיו / מידע שהיה ידוע קודם / פרשנות של הכתבה / תחזית עתידית.
-4. אל תניח שהכותרת מתארת אירוע חדש. קבע במפורש האם יש כאן NEW INFORMATION או REPACKAGING של מידע קיים.
-5. אם לא ניתן לאמת עובדה מהותית — ציין זאת ואל תמציא.
-
-0.5 RELEVANCE GATE
-לפני שממשיכים: האם יש מנגנון השפעה סביר של האירוע על שוק המניות האמריקאי (ישירות, או דרך סחורות, ריביות, מטבע, שרשרת אספקה או סנטימנט)?
-אם אין — כתוב זאת בקצרה, הסבר למה, ציין מה היה צריך לקרות כדי שתהיה השפעה, ועצור. אל תמציא מניות.
-אם ההשפעה קיימת אבל חלשה — המשך, מותר לבחור פחות מ-10 מניות, והצהר על כך.
-
-1. CLASSIFY THE EVENT
-סווג את האירוע לאחת הקטגוריות:
-* ONE-OFF — פעולה/אירוע דיסקרטי שהסתיים או מוגדר בזמן.
-* PROCESS — תהליך פתוח שיכול להמשיך ולהתפתח.
-* POLICY / FISCAL — שינוי או איום בשינוי מדיניות, רגולציה, מיסוי, תקציב או פיסקלי.
-* MACRO — נתון או התפתחות מאקרו.
-* CORPORATE — אירוע ברמת חברה.
-* GEOPOLITICAL — אירוע גיאופוליטי.
-אם האירוע מתאים ליותר מקטגוריה אחת, בחר קטגוריה ראשית וציין קטגוריה משנית.
-אם הסיווג אינו ודאי: Scenario A + Scenario B, כאשר כל תרחיש מסומן בנפרד.
-חשוב: אל תיישם אוטומטית את ה-historical edge שלי. קודם בדוק האם האירוע הנוכחי שייך לאותה EVENT CLASS של המדגם ההיסטורי.
-
-2. MATCH TO HISTORICAL RESEARCH
-המחקר שלי:
-* 40 geopolitical events, 2021–2026.
-* Trade rule: fade the headline gap at Open[D], exit Close[D+4].
-* ONE-OFF: fade won 74% (n=23, +0.71%), but was not statistically significant versus ordinary large gaps.
-* PROCESS with |z| >= 2: fade lost (-3.72%, hit rate 33%).
-* Therefore: process events with |z| >= 2 were historically associated with continuation rather than fading.
-* SPY gap-downs >=2σ on geopolitical events were bought back within 5 sessions.
-* USO >=2σ gaps on process events continued.
-* These are hypotheses, not proven edges.
-Historical analogs (P = process, O = one-off):
-Ukraine invasion 2022-02-24 P · OPEC+ cut 2023-04-03 O · Wagner 2023-06-26 O · Hamas attack 2023-10-09 P · Houthi strikes 2024-01-12 O · Iran missiles 2024-04-15 O · Israel strike on Iran 2024-10-28 O · Assad falls 2024-12-09 O · Canada/Mexico/China tariffs 2025-02-03 P · Liberation Day 2025-04-03 P · Geneva truce 2025-05-12 O · Israel strikes Iran 2025-06-13 P · US strikes Iran nuclear 2025-06-23 O · Maduro captured 2026-01-05 O · US/Israel-Iran war 2026-03-02 P · US-Iran ceasefire 2026-04-08 O
-
-CRITICAL TRANSFERABILITY TEST
-לפני שימוש בסטטיסטיקות:
-A. האם האירוע הנוכחי הוא מאותה EVENT CLASS כמו המדגם ההיסטורי?
-B. האם מנגנון ההשפעה על השוק דומה?
-C. האם אופק הזמן דומה?
-D. האם מדובר ב-new information דומה?
-סווג את יכולת ההעברה כ: HIGH / MEDIUM / LOW / NOT TRANSFERABLE.
-אם היא LOW או NOT TRANSFERABLE, אל תציג את ה-74% או 33% כאילו הם edge תקף לאירוע הנוכחי.
-
-3. MEASURE THE SURPRISE
-קבע עד כמה האירוע מפתיע את השוק: LOW / MEDIUM / HIGH, והסבר למה.
-אם אפשר, הערך: magnitude of expected market gap; האם האירוע כבר מתומחר; האם מדובר בשינוי משמעותי לעומת consensus / previous information.
-אל תמציא z-score. אם אין מספיק נתונים לחישוב, כתוב "z-score unavailable".
-
-4. DEFINE DAY D
-קבע מהו יום המסחר D.
-אם הכתבה פורסמה כאשר השוק סגור: D = יום המסחר הבא.
-אם פורסמה בזמן המסחר: D = אותו יום, אלא אם ההשפעה הרלוונטית היא בבירור ליום הבא.
-ציין את ההיגיון.
-
-5. MARKET REACTION
-נתח את התגובה הצפויה ב: SPY, QQQ, IWM, relevant sector ETFs.
-אם השוק עדיין לא נפתח, אל תציג תחזית כאילו היא עובדה.
-הצג: 1. Expected direction 2. Confidence: LOW / MEDIUM / HIGH 3. Main mechanism 4. What could invalidate it.
-אם D כבר התרחש, השתמש בנתוני המחיר בפועל.
-
-6. FADE VS CONTINUATION
-קבע האם האירוע מתאים יותר ל: FADE / CONTINUATION / NO CLEAR EDGE.
-אל תבחר FADE או CONTINUATION רק בגלל שהכותרת חיובית/שלילית.
-ההחלטה צריכה להתבסס על: 1. Event classification 2. Transferability 3. Surprise magnitude 4. Pricing 5. Market reaction 6. Similar historical events.
-אם אין מספיק evidence: NO CLEAR EDGE.
-
-7. STOCK MAPPING
-בחר 10 מניות אמריקאיות נזילות שרלוונטיות לאירוע (או פחות, לפי שלב 0.5).
-חובה לכלול גם מניות שעלולות ליהנות וגם מניות שעלולות להיפגע.
-טבלה:
-| Ticker | Name | ↑/↓ | Order | Exposure 1–3 | Concrete fact | Mechanism | Last close / 1M |
-ORDER 1 = השפעה ישירה וברורה מהאירוע.
-ORDER 2 = השפעה משנית דרך consumer / credit / commodities / rates / supply chain / sentiment וכו'.
-אל תסווג מניה כ-Order 1 רק משום שהעסק שלה "קשור לנושא". לכל מניה חייב להיות מנגנון transmission ברור.
-אל תמציא exposure, revenue share או נתון פיננסי.
-
-8. ETF MAPPING
-בחר 4–7 ETFs מתוך: SPY QQQ IWM SMH XLE USO UNG GLD SLV TLT UUP ITA XAR EWT FXI KWEB EWJ EWY EPOL VGK EWZ REMX COPX WEAT DBA JETS XOP
-טבלה:
-| ETF | ↑/↓ | Exposure 1–3 | Mechanism | Last close / 1M | Already priced? |
-
-9. PRICING CHECK
-עבור הנכסים המרכזיים: Last Close, 1-month change, אם אפשר YTD, והאם כבר הייתה תנועה משמעותית בכיוון האירוע.
-המטרה: לאתר האם הטרייד כבר crowded / priced in. אם המניה כבר זזה משמעותית לפני האירוע, אל תניח שהכתבה תיצור מהלך נוסף.
-אם אין לך גישה לנתוני מחיר עדכניים, כתוב זאת ואל תמציא מספרים.
-
-10. CLOSEST ANALOG
-מצא את 1–3 האנלוגים ההיסטוריים הקרובים ביותר. לכל אחד: מה דומה, מה שונה, מה הייתה תגובת השוק, והאם האנלוג באמת רלוונטי או רק superficially similar.
-אל תבחר אנלוג רק לפי נושא. העדף similarity לפי: 1. event type 2. surprise 3. policy mechanism 4. market regime 5. time horizon.
-
-11. WHAT THE RESEARCH ACTUALLY SAYS
-הפרד בין: Evidence (מה שהנתונים באמת מראים) / Hypothesis (מה שאפשר להסיק בזהירות) / Unknown (מה שאין מספיק נתונים לדעת).
-אל תציג correlation כהוכחת causation.
-
-12. CRITIQUE
-בקר את התזה שלך בעצמך. ענה: 1. מה כבר מתומחר? 2. האם זה באמת NEW INFORMATION? 3. איזה חלק מהתגובה יכול להגיע מאירועים אחרים? 4. האם ה-historical sample מתאים לאירוע הזה? 5. איפה המדגם קטן מדי? 6. איפה קיימת survivorship / selection bias? 7. האם ה-regime הנוכחי שונה מהתקופה שבה נאסף המדגם? 8. מה הסיכון ל-false attribution?
-
-13. WHAT WOULD FLIP THE THESIS?
-ציין 3–5 עובדות עתידיות שאם יופיעו ישנו את המסקנה (נתון מאקרו חדש, החלטת ממשלה, שינוי בתשואות Treasury, תגובת SPY חריגה, שינוי במחירי commodities, מידע חדש שסותר את ההנחה המקורית).
-לכל אחד: Current thesis → New information → Revised thesis.
-
-14. FINAL TRADING FRAMEWORK
-סכם אך ורק: Event (מה קרה) / Classification / Transferability (HIGH / MEDIUM / LOW / NOT TRANSFERABLE) / Surprise (LOW / MEDIUM / HIGH) / Market setup (FADE / CONTINUATION / NO CLEAR EDGE) / Key assets (3–5 הנכסים החשובים ביותר למעקב) / Invalidation (מה יגרום לבטל את התזה).
-אל תיתן "Buy/Sell recommendation".
-
-OUTPUT FORMAT
-ענה רק בעברית. השתמש בדיוק בסעיפים (בסוגריים: אילו שלבים נכנסים לכל סעיף):
-1. האירוע + אימות (שלבים 0, 0.5)
-2. סיווג האירוע (שלב 1)
-3. התאמה למחקר ההיסטורי (שלב 2 + מבחן ההעברה)
-4. תגובת יום D (שלבים 3, 4, 5, 6: הפתעה, יום D, תגובת שוק, FADE / CONTINUATION)
-5. 10 מניות (שלבים 7, 9)
-6. ETFs (שלבים 8, 9)
-7. האנלוג הקרוב ביותר (שלב 10)
-8. מה המחקר באמת אומר (שלב 11)
-9. ביקורת (שלב 12)
-10. מה יהפוך את התזה (שלב 13)
-11. סיכום Trading Framework (שלב 14)
-אם עצרת בשלב 0.5, ענה רק בסעיף 1 ובשורת הסיכום.
-כל טענה עובדתית עדכנית חייבת להיות מגובה במקור. אל תמציא נתונים. אל תציג תחזית כעובדה. אם אין מספיק מידע — כתוב שאין מספיק מידע.
-בסוף: מחקר וניתוח בלבד, לא ייעוץ השקעות.`;
+// The longest version that still fits in a link of maxEncoded characters,
+// trimming the excerpt first. null when even the headline alone does not fit.
+export function linkPrompt(opts, maxEncoded) {
+  for (const n of [2000, 1200, 600, 300, 0]) {
+    const p = chatPrompt(opts, n);
+    if (encodeURIComponent(p).length <= maxEncoded) return p;
+  }
+  return null;
 }
 
 export function buildPrompt(opts) {

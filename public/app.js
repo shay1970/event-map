@@ -1,4 +1,4 @@
-import { buildPrompt } from "./prompt.js";
+import { buildPrompt, linkPrompt } from "./prompt.js";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -215,15 +215,19 @@ function legacyCopy(text) {
   let ok = false; try { ok = document.execCommand("copy"); } catch {}
   ta.remove(); return ok;
 }
+// Hebrew costs six URL characters per letter; long links get rejected by some
+// servers, so past this length the prompt goes by clipboard only.
+const MAX_URL_PROMPT = 14000;
 function openInClaude({ text, mode, sourceUrl }) {
-  // The analysis prompt is far longer than a link can carry (Hebrew costs six
-  // URL characters per letter), so it goes by clipboard. Both calls run inside
-  // the click, so the browser allows the copy and the new tab.
-  const prompt = buildPrompt({ text, mode, sourceUrl, format: "chat" });
-  lastPrompt = prompt;
-  const copied = copyText(prompt);
-  window.open(CLAUDE_NEW, "_blank", "noopener");
-  return { copied, inUrl: false };
+  // Open Claude with the prompt already typed in when it fits in the link,
+  // and always copy the full version (whole excerpt) as a backup. Both calls
+  // run inside the click, so the browser allows the copy and the new tab.
+  const inLink = linkPrompt({ text, mode, sourceUrl }, MAX_URL_PROMPT);
+  const full = buildPrompt({ text, mode, sourceUrl, format: "chat" });
+  lastPrompt = full;
+  const copied = copyText(full);
+  window.open(inLink ? `${CLAUDE_NEW}?q=${encodeURIComponent(inLink)}` : CLAUDE_NEW, "_blank", "noopener");
+  return { copied, inUrl: !!inLink };
 }
 function showCopied(ok, { imgNote, saved, inUrl }) {
   $("#copied").hidden = false;
