@@ -83,3 +83,35 @@ ${String(text).slice(0, 20000)}`;
 export function buildPrompt(opts) {
   return opts.format === 'chat' ? chatPrompt(opts) : jsonPrompt(opts);
 }
+
+// Short version that fits in a claude.ai/new?q= link, so Claude opens with
+// the question already typed. Hebrew costs 6 URL characters per letter, so
+// the instructions stay in English and the article goes by link when we have one.
+const SHORT_RULES = `Rules (my study of 40 geopolitical events 2021-26; trade = fade the headline gap at Open[D], exit Close[D+4]):
+- Label first. process = starts something open-ended (war, tariff/sanctions regime, open campaign). one-off = discrete completed action (single strike, capture, specified cut, ceasefire). Unclear or pre-registered → scenarios A/B, each labeled.
+- one-off: fade won 74% (n=23, +0.71%) but not significant vs ordinary big gaps.
+- process with |z|>=2: fade lost (-3.72%, hit 33%) → don't fade; big gaps tended to continue.
+- SPY gap-downs >=2σ on geopolitics were bought back within 5 sessions. USO >=2σ gaps on process events continued.
+- Hypotheses, not proven edges.
+Analogs: Ukraine invasion 2022-02-24 P; OPEC+ cut 2023-04-03 O; Wagner 2023-06-26 O; Hamas attack 2023-10-09 P; Houthi strikes 2024-01-12 O; Iran missiles 2024-04-15 O; Israel strike on Iran 2024-10-28 O; Assad falls 2024-12-09 O; Canada/Mexico/China tariffs 2025-02-03 P; Liberation Day 2025-04-03 P; Geneva truce 2025-05-12 O; Israel strikes Iran 2025-06-13 P; US strikes Iran nuclear 2025-06-23 O; Maduro captured 2026-01-05 O (producers faded, MPC/PSX/SLB rose); US/Israel-Iran war 2026-03-02 P; US-Iran ceasefire 2026-04-08 O.
+Mapping: 10 liquid US stocks (from 12-15 candidates; include fallers), order 1 = the headline, order 2 = second-order winners/losers; exposure 1-3 with the concrete fact (no invented %). 4-7 ETFs from SPY QQQ IWM SMH XLE USO UNG GLD SLV TLT UUP ITA XAR EWT FXI KWEB EWJ EWY EPOL VGK EWZ REMX COPX WEAT DBA JETS XOP. If you can, add last close and 1-month change (a big move in the event's direction may be priced in).
+Answer ONLY in Hebrew (tickers in English), sections: 1 the event + verification with sources; 2 reaction day D; 3 label + reason (+A/B); 4 table of 10 stocks: ticker|name|↑/↓|order|exposure+reason|mechanism; 5 ETF table; 6 closest analog + what differs; 7 what the research says; 8 critique (priced in? where rules break, risk); 9 what would flip the thesis. End: research, not investment advice.`;
+
+const SHORT_MODE = { real: 'Mode: real, happened now. Verify first with web search (Reuters/AP/Bloomberg).', pre: 'Mode: pre-registered scenario, has not happened. Give scenarios A and B.', imaginary: 'Mode: imaginary, demo only.' };
+
+export function shortChatPrompt({ text, mode, sourceUrl }, maxEncoded) {
+  const head = 'מה ההשפעה של הכתבה הזו על שוק המניות האמריקאי? נתח לפי הכללים.';
+  const today = `Today: ${new Date().toISOString().slice(0, 10)}. ${SHORT_MODE[mode] || ''}`;
+  const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+  const title = lines[0] || '';
+  const build = body => [head, '', body, '', today, SHORT_RULES].join('\n');
+  // With a link, Claude reads the article itself; send the headline plus a short excerpt.
+  const bodyFor = n => sourceUrl
+    ? `Article: ${sourceUrl}\nHeadline: ${title}${n ? `\nExcerpt: ${lines.slice(1).join(' ').slice(0, n)}` : ''}`
+    : `Event:\n${String(text).slice(0, n)}`;
+  for (const n of sourceUrl ? [600, 300, 0] : [3000, 1500, 800, 400]) {
+    const p = build(bodyFor(n));
+    if (encodeURIComponent(p).length <= maxEncoded) return p;
+  }
+  return null;
+}

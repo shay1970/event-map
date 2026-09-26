@@ -1,4 +1,4 @@
-import { buildPrompt } from "./prompt.js";
+import { buildPrompt, shortChatPrompt } from "./prompt.js";
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -203,6 +203,7 @@ $("#stop").onclick = () => ctl?.abort();
 
 /* ---------- open in Claude (no API key needed) ---------- */
 const CLAUDE_NEW = "https://claude.ai/new";
+let lastPrompt = null;
 function copyText(text) {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
   return Promise.resolve(legacyCopy(text));
@@ -214,19 +215,24 @@ function legacyCopy(text) {
   let ok = false; try { ok = document.execCommand("copy"); } catch {}
   ta.remove(); return ok;
 }
+const MAX_URL_PROMPT = 7000; // encoded length that still fits a claude.ai link
 function openInClaude({ text, mode, sourceUrl }) {
-  const prompt = buildPrompt({ text, mode, sourceUrl, format: "chat" });
-  // Both calls run inside the click, so the browser allows the copy and the new tab.
-  // The prompt (rules + article) is far too long for a URL, so it goes by clipboard.
+  // Prefer a short prompt inside the link so Claude opens with the question
+  // typed in; otherwise the full prompt goes by clipboard. The copy is made
+  // either way as a backup. Both calls run inside the click, so the browser
+  // allows the copy and the new tab.
+  const short = shortChatPrompt({ text, mode, sourceUrl }, MAX_URL_PROMPT);
+  const prompt = short || buildPrompt({ text, mode, sourceUrl, format: "chat" });
+  lastPrompt = prompt;
   const copied = copyText(prompt);
-  window.open(CLAUDE_NEW, "_blank", "noopener");
-  return { copied };
+  window.open(short ? `${CLAUDE_NEW}?q=${encodeURIComponent(short)}` : CLAUDE_NEW, "_blank", "noopener");
+  return { copied, inUrl: !!short };
 }
-let lastPrompt = null;
-function showCopied(ok, { imgNote, saved }) {
+function showCopied(ok, { imgNote, saved, inUrl }) {
   $("#copied").hidden = false;
-  $("#copied").classList.toggle("err", !ok);
-  $("#copied b").textContent = ok ? "✓ הכתבה והכללים הועתקו." : "ההעתקה נחסמה בדפדפן. לחץ \"העתק שוב\" ואז הדבק ב-Claude.";
+  $("#copied").classList.toggle("err", !ok && !inUrl);
+  $("#copiedPaste").hidden = inUrl; $("#copiedDirect").hidden = !inUrl;
+  $("#copied b").textContent = inUrl ? "✓ Claude נפתח בלשונית חדשה, עם השאלה כבר בתיבה." : ok ? "✓ הכתבה והכללים הועתקו." : "ההעתקה נחסמה בדפדפן. לחץ \"העתק שוב\" ואז הדבק ב-Claude.";
   $("#copiedMore").textContent = [imgNote && "את צילום המסך צרף ישירות בצ'אט של Claude.", saved && "הניתוח נשמר ביומן, ושם אפשר להדביק את התשובה של Claude."].filter(Boolean).join(" ");
   status("");
   $("#copied").scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -237,10 +243,9 @@ $("#openClaude").onclick = () => {
   if (!text) { status($("#img").files?.[0] ? "במצב הזה צריך טקסט. תאר את האירוע במילים, ואת צילום המסך צרף ישירות בצ'אט של Claude." : "כתוב אירוע, או בחר ידיעה מלשונית החדשות."); return; }
   const mode = document.querySelector("input[name=mode]:checked").value;
   const sourceUrl = $("#url").value.trim() || null;
-  lastPrompt = buildPrompt({ text, mode, sourceUrl, format: "chat" });
-  const { copied } = openInClaude({ text, mode, sourceUrl });
+  const { copied, inUrl } = openInClaude({ text, mode, sourceUrl });
   const saved = mode !== "imaginary" && logAdd({ kind: "chat", createdAt: new Date().toISOString(), mode, event: text.slice(0, 20000), sourceUrl, analysis: "", outcome: "" });
-  copied.then(ok => showCopied(ok, { imgNote: !!$("#img").files?.[0], saved }));
+  copied.then(ok => showCopied(ok, { imgNote: !!$("#img").files?.[0], saved, inUrl }));
 };
 function finish(){ $("#go").disabled = false; $("#stop").hidden = true; }
 function showErr(m){ status(""); $("#result").innerHTML = `<div class="notice err" style="margin-top:14px">${esc(m)}</div>`; }
@@ -346,7 +351,7 @@ function openChatDetail(r){
     <div class="row"><button class="btn" id="saveOut">שמור</button><span class="hint" id="outSt"></span></div></div>`;
   $("#list").hidden = true;
   $("#back").onclick = loadLog;
-  $("#reopen").onclick = () => { openInClaude(r).copied.then(ok => { $("#outSt").textContent = ok ? "הועתק, ו-Claude נפתח בלשונית חדשה. הדבק (Ctrl+V) ושלח." : "ההעתקה נחסמה בדפדפן."; }); };
+  $("#reopen").onclick = () => { const o = openInClaude(r); o.copied.then(ok => { $("#outSt").textContent = o.inUrl ? "Claude נפתח עם השאלה. לחץ שם על שליחה." : ok ? "הועתק, ו-Claude נפתח בלשונית חדשה. הדבק (Ctrl+V) ושלח." : "ההעתקה נחסמה בדפדפן."; }); };
   $("#del").onclick = () => {
     if (!confirm("למחוק את הניתוח מהיומן?")) return;
     logWrite(logRead().filter(x => x.id !== r.id)); loadLog();
