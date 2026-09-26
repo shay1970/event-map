@@ -6,7 +6,7 @@ import { getManyStats } from '../lib/prices.js';
 
 const IMG_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const MAX_IMAGE_B64 = 7 * 1024 * 1024; // ~5MB decoded
-const MODES = new Set(['real', 'pre', 'imaginary']);
+const MODES = new Set(['real', 'pre']);
 const LIMIT = parseInt(process.env.ANALYZE_LIMIT_PER_HOUR || '20', 10);
 
 const ERR_HE = {

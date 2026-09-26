@@ -5,7 +5,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const safeUrl = u => /^https?:\/\//i.test(String(u || "")) ? esc(u) : "#";
 const pct = (x, d=1) => x == null || !isFinite(x) ? "—" : (x>0?"+":"") + (x*100).toFixed(d) + "%";
 const num = (x, d=2) => x == null || !isFinite(x) ? "—" : x.toFixed(d);
-const MODE_HE = {real:"אמיתי", pre:"תרחיש מראש", imaginary:"דמיוני"};
+const MODE_HE = {real:"אמיתי", pre:"תרחיש מראש", imaginary:"דמיוני"}; // "imaginary" kept only to label old log entries
 const hostOf = u => { try { return new URL(u).hostname; } catch { return u; } };
 const hasHebrew = s => /[֐-׿]/.test(s || "");
 $("#dateline").textContent = new Date().toISOString().slice(0,10) + " · NEWS → US EQUITIES";
@@ -187,8 +187,7 @@ $("#form").onsubmit = async e => {
         else if (ev.type === "error") { showErr(ev.error); if (ev.detail) log("   " + ev.detail); gotResult = true; }
         else if (ev.type === "result") {
           gotResult = true;
-          if (ev.doc.mode !== "imaginary") log(logAdd(ev.doc) ? "③ נשמר ביומן (בדפדפן הזה)." : "③ השמירה ביומן נכשלה — הזיכרון של הדפדפן מלא או חסום.");
-          else log("③ דמיוני — לא נשמר ביומן.");
+          log(logAdd(ev.doc) ? "③ נשמר ביומן (בדפדפן הזה)." : "③ השמירה ביומן נכשלה — הזיכרון של הדפדפן מלא או חסום.");
           renderResult(ev.doc, $("#result")); status("מוכן.");
         }
       }
@@ -245,7 +244,7 @@ $("#openClaude").onclick = () => {
   const mode = document.querySelector("input[name=mode]:checked").value;
   const sourceUrl = $("#url").value.trim() || null;
   const { copied, inUrl } = openInClaude({ text, mode, sourceUrl });
-  const saved = mode !== "imaginary" && logAdd({ kind: "chat", createdAt: new Date().toISOString(), mode, event: text.slice(0, 20000), sourceUrl, analysis: "", outcome: "" });
+  const saved = logAdd({ kind: "chat", createdAt: new Date().toISOString(), mode, event: text.slice(0, 20000), sourceUrl, analysis: "", outcome: "" });
   copied.then(ok => showCopied(ok, { imgNote: !!$("#img").files?.[0], saved, inUrl }));
 };
 function finish(){ $("#go").disabled = false; $("#stop").hidden = true; }

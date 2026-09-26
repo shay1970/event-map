@@ -1,6 +1,6 @@
 // The analysis prompt and the user's research rules. Shared by the server
 // (API mode, JSON answer) and the page ("open in Claude" mode, chat answer).
-const MODE_EN = { real: 'real — happened now', pre: 'pre-registered scenario that has not happened yet (you MUST split into scenarios A and B)', imaginary: 'imaginary — demo only' };
+const MODE_EN = { real: 'real — happened now', pre: 'pre-registered scenario that has not happened yet (you MUST split into scenarios A and B)' };
 
 const RULES = `
 RESEARCH RULES (from the user's own event study, 40 geopolitical events 2021-2026, basket SPY/XLE/USO/GLD/ITA; trade = fade the headline gap at Open[D], exit Close[D+4]):
@@ -16,7 +16,7 @@ Known analog events in the sample (use for "analog"): Russia invades Ukraine (20
 function jsonPrompt({ text, mode, hasImg, verify, sourceUrl }) {
   const today = new Date().toISOString().slice(0, 10);
   return `You are a geopolitical-to-equities analyst for a Hebrew-speaking trader. Map this news event to affected US-listed stocks and ETFs.
-Today: ${today}. Mode: ${mode} (real = happened now; pre = pre-registered scenario that has not happened, you MUST give A/B scenarios; imaginary = demo).
+Today: ${today}. Mode: ${mode} (real = happened now; pre = pre-registered scenario that has not happened, you MUST give A/B scenarios).
 ${hasImg ? 'An image (screenshot of a tweet or article) is attached — transcribe its core claim into the summary and treat it as UNVERIFIED until checked.' : ''}
 ${sourceUrl ? `The text was pulled from: ${sourceUrl}` : ''}
 ${verify
@@ -52,7 +52,6 @@ ${text.slice(0, 20000)}`;
 const CHAT_MODE = {
   real: 'Mode: real, happened now.',
   pre: 'Mode: pre-registered scenario, has NOT happened yet. Verify only background facts, and give Scenario A/B.',
-  imaginary: 'Mode: imaginary, demo only. Skip verification.',
 };
 
 const CHAT_RULES = `1. אימות
